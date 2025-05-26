@@ -2,11 +2,19 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using MongoDB.Driver;
+using NumberLandStructure.Data;
+using NumberLandStructure.Input;
+using NumberLandStructure.Repository;
+using NumberLandStructure.Reports;
+using NumberLandStructure.Logic;
 
 namespace NumberLandStructure
 {
     class Program
     {
+        private static ChildProgressRepository _repository;
+        private static ReportGenerator _reportGenerator;
+
         static async Task Main(string[] args)
         {
             // MongoDB connection setup
@@ -14,262 +22,457 @@ namespace NumberLandStructure
             var client = new MongoClient(connectionString);
             var database = client.GetDatabase("NumberLandDB"); // Replace with your database name
 
-            // Initialize repository
-            var repository = new ChildProgressRepository(database);
+            // Initialize components
+            _repository = new ChildProgressRepository(database);
+            _reportGenerator = new ReportGenerator();
 
-            // Example usage
-            await RunExampleScenario(repository);
+            Console.WriteLine("🎮 Welcome to NumberLand Progress Tracking System!");
+            Console.WriteLine("==================================================\n");
 
-            Console.WriteLine("Press any key to exit...");
+            try
+            {
+                // Example usage scenarios
+                await RunDemoScenarios();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error: {ex.Message}");
+            }
+
+            Console.WriteLine("\nPress any key to exit...");
             Console.ReadKey();
         }
 
-        static async Task RunExampleScenario(ChildProgressRepository repository)
+        static async Task RunDemoScenarios()
         {
-            string childUserId = "child_123"; // Example child ID
+            string childUserId = "child_demo_123";
 
-            Console.WriteLine("=== NumberLand Progress Tracking Demo ===\n");
+            Console.WriteLine("🧪 Running Demo Scenarios...\n");
 
-            // Example 1: Record tracing activity
-            Console.WriteLine("1. Recording tracing activities...");
-            await RecordTracingActivities(repository, childUserId);
+            // Scenario 1: Record tracing activities
+            await Demo1_RecordTracingActivities(childUserId);
 
-            // Example 2: Record quiz activities
-            Console.WriteLine("\n2. Recording quiz activities...");
-            await RecordQuizActivities(repository, childUserId);
+            // Scenario 2: Record quiz activities  
+            await Demo2_RecordQuizActivities(childUserId);
 
-            // Example 3: Generate parent report
-            Console.WriteLine("\n3. Generating parent report...");
-            await GenerateParentReport(repository, childUserId);
+            // Scenario 3: Generate reports
+            await Demo3_GenerateReports(childUserId);
 
-            // Example 4: Get focused learning plan
-            Console.WriteLine("\n4. Creating focused learning plan...");
-            await GetLearningPlan(repository, childUserId);
+            // Scenario 4: Batch operations
+            await Demo4_BatchOperations(childUserId);
 
-            // Example 5: Analyze activity weaknesses
-            Console.WriteLine("\n5. Analyzing activity weaknesses...");
-            await AnalyzeWeaknesses(repository, childUserId);
+            // Scenario 5: Learning recommendations
+            await Demo5_LearningRecommendations(childUserId);
         }
 
-        static async Task RecordTracingActivities(ChildProgressRepository repository, string childUserId)
+        #region Demo Scenarios
+
+        static async Task Demo1_RecordTracingActivities(string userId)
         {
-            // Record Number 1 tracing activity
-            var tracingInput1 = new TracingActivityInput
-            {
-                ActivityType = ECDGameActivityName.Numbers,
-                ItemDetails = "1",
-                Completed = true,
-                StarsAchieved = 2,
-                MaxStars = 3,
-                TotalTime = 45.5 // seconds
-            };
-            await repository.UpdateProgressWithTracing(childUserId, tracingInput1);
-            Console.WriteLine("✓ Recorded Number 1 tracing: 2/3 stars, 45.5 seconds");
+            Console.WriteLine("📝 Demo 1: Recording Tracing Activities");
+            Console.WriteLine("========================================");
 
-            // Record Number 2 tracing activity
-            var tracingInput2 = new TracingActivityInput
+            // Create tracing activities using InputBuilder
+            var tracingActivities = new[]
             {
-                ActivityType = ECDGameActivityName.Numbers,
-                ItemDetails = "2",
-                Completed = false, // Child didn't complete it
-                StarsAchieved = 1,
-                MaxStars = 3,
-                TotalTime = 65.2
+                InputBuilder.CreateTracingInput(ECDGameActivityName.Numbers, "1", true, 3, 42.5),
+                InputBuilder.CreateTracingInput(ECDGameActivityName.Numbers, "2", true, 2, 55.2),
+                InputBuilder.CreateTracingInput(ECDGameActivityName.Numbers, "3", false, 1, 68.8),
+                InputBuilder.CreateTracingInput(ECDGameActivityName.CapitalAlphabet, "A", true, 3, 38.1),
+                InputBuilder.CreateTracingInput(ECDGameActivityName.CapitalAlphabet, "B", true, 2, 45.6),
+                InputBuilder.CreateTracingInput(ECDGameActivityName.Shapes, "Circle", true, 3, 33.4)
             };
-            await repository.UpdateProgressWithTracing(childUserId, tracingInput2);
-            Console.WriteLine("✓ Recorded Number 2 tracing: 1/3 stars, 65.2 seconds (incomplete)");
 
-            // Record Letter A tracing activity
-            var tracingInputA = new TracingActivityInput
+            foreach (var activity in tracingActivities)
             {
-                ActivityType = ECDGameActivityName.CapitalAlphabet,
-                ItemDetails = "A",
-                Completed = true,
-                StarsAchieved = 3,
-                MaxStars = 3,
-                TotalTime = 38.1
-            };
-            await repository.UpdateProgressWithTracing(childUserId, tracingInputA);
-            Console.WriteLine("✓ Recorded Letter A tracing: 3/3 stars, 38.1 seconds");
-        }
+                var result = await _repository.AddTracingActivityAsync(userId, activity);
 
-        static async Task RecordQuizActivities(ChildProgressRepository repository, string childUserId)
-        {
-            // Quiz for Number 1 (multiple quiz types)
-            var quizInput1 = new QuizActivityInput
-            {
-                ActivityType = ECDGameActivityName.Numbers,
-                ItemDetails = "1",
-                QuizDetails = new List<QuizDetail>
+                if (result.IsSuccess)
                 {
-                    new QuizDetail
-                    {
-                        Type = QuizTypeDetail.Counting,
-                        Completed = true,
-                        TotalLives = 3,
-                        LivesRemaining = 2,
-                        QuizTimeOut = false,
-                        TimeTaken = 25.3,
-                        TimeGiven = 60.0,
-                        Score = 85
-                    },
-                    new QuizDetail
-                    {
-                        Type = QuizTypeDetail.Listening,
-                        Completed = true,
-                        TotalLives = 3,
-                        LivesRemaining = 1,
-                        QuizTimeOut = false,
-                        TimeTaken = 18.7,
-                        TimeGiven = 30.0,
-                        Score = 75
-                    },
-                    new QuizDetail
-                    {
-                        Type = QuizTypeDetail.TextToFigure,
-                        Completed = false,
-                        TotalLives = 3,
-                        LivesRemaining = 0, // Failed - no lives left
-                        QuizTimeOut = false,
-                        TimeTaken = 45.0,
-                        TimeGiven = 60.0,
-                        Score = 35
-                    }
+                    Console.WriteLine($"✅ {activity.ActivityType} '{activity.ItemDetails}': {activity.StarsAchieved}/3 stars, {activity.TotalTime}s");
                 }
-            };
-            await repository.UpdateProgressWithQuiz(childUserId, quizInput1);
-            Console.WriteLine("✓ Recorded Number 1 quiz: Counting(85%), Listening(75%), Text-to-Figure(35% - Failed)");
-
-            // Quiz for Letter A
-            var quizInputA = new QuizActivityInput
-            {
-                ActivityType = ECDGameActivityName.CapitalAlphabet,
-                ItemDetails = "A",
-                QuizDetails = new List<QuizDetail>
+                else
                 {
-                    new QuizDetail
-                    {
-                        Type = QuizTypeDetail.ObjectRecognition,
-                        Completed = true,
-                        TotalLives = 3,
-                        LivesRemaining = 3,
-                        QuizTimeOut = false,
-                        TimeTaken = 12.5,
-                        TimeGiven = 30.0,
-                        Score = 95
-                    },
-                    new QuizDetail
-                    {
-                        Type = QuizTypeDetail.FiguresToText,
-                        Completed = true,
-                        TotalLives = 3,
-                        LivesRemaining = 2,
-                        QuizTimeOut = false,
-                        TimeTaken = 22.1,
-                        TimeGiven = 45.0,
-                        Score = 88
-                    }
+                    Console.WriteLine($"❌ Failed to add {activity.ItemDetails}: {result.Message}");
                 }
-            };
-            await repository.UpdateProgressWithQuiz(childUserId, quizInputA);
-            Console.WriteLine("✓ Recorded Letter A quiz: Object Recognition(95%), Figure-to-Text(88%)");
+            }
+
+            Console.WriteLine();
         }
 
-        static async Task GenerateParentReport(ChildProgressRepository repository, string childUserId)
+        static async Task Demo2_RecordQuizActivities(string userId)
         {
-            var report = await repository.GetParentReport(childUserId, ProgressEventType.Daily);
+            Console.WriteLine("🎯 Demo 2: Recording Quiz Activities");
+            Console.WriteLine("=====================================");
 
-            Console.WriteLine("PARENT PROGRESS REPORT:");
-            Console.WriteLine("========================");
-            Console.WriteLine(report.GenerateReport());
+            // Create quiz activities with multiple quiz types
+            var quiz1 = InputBuilder.CreateQuizInput(
+                ECDGameActivityName.Numbers, "1",
+                InputBuilder.CreateQuizDetail(QuizTypeDetail.Counting, true, 3, 2, false, 25.3, 60.0, 85),
+                InputBuilder.CreateQuizDetail(QuizTypeDetail.Listening, true, 3, 1, false, 18.7, 30.0, 78),
+                InputBuilder.CreateQuizDetail(QuizTypeDetail.TextToFigure, false, 3, 0, false, 45.0, 60.0, 35)
+            );
+
+            var quiz2 = InputBuilder.CreateQuizInput(
+                ECDGameActivityName.CapitalAlphabet, "A",
+                InputBuilder.CreateQuizDetail(QuizTypeDetail.ObjectRecognition, true, 3, 3, false, 12.5, 30.0, 95),
+                InputBuilder.CreateQuizDetail(QuizTypeDetail.FiguresToText, true, 3, 2, false, 22.1, 45.0, 88)
+            );
+
+            var quizActivities = new[] { quiz1, quiz2 };
+
+            foreach (var quizActivity in quizActivities)
+            {
+                var result = await _repository.AddQuizActivityAsync(userId, quizActivity);
+
+                if (result.IsSuccess)
+                {
+                    var performance = quizActivity.GetPerformanceSummary();
+                    Console.WriteLine($"✅ {quizActivity.ActivityType} '{quizActivity.ItemDetails}': " +
+                        $"{performance.PassedQuizzes}/{performance.TotalQuizzes} passed, " +
+                        $"Avg Score: {performance.AverageScore:F0}%");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Failed to add quiz for {quizActivity.ItemDetails}: {result.Message}");
+                }
+            }
+
+            Console.WriteLine();
         }
 
-        static async Task GetLearningPlan(ChildProgressRepository repository, string childUserId)
+        static async Task Demo3_GenerateReports(string userId)
         {
-            var learningPlan = await repository.GetFocusedLearningPlan(childUserId, 7);
+            Console.WriteLine("📊 Demo 3: Generating Reports");
+            Console.WriteLine("==============================");
 
-            Console.WriteLine("FOCUSED LEARNING PLAN:");
-            Console.WriteLine("======================");
-            Console.WriteLine(learningPlan.GetPlanSummary());
+            try
+            {
+                // Get current progress
+                var progress = await _repository.GetProgressAsync(userId, ProgressEventType.Daily);
+                if (progress == null)
+                {
+                    Console.WriteLine("⚠️ No progress data found for today.");
+                    return;
+                }
+
+                // Get weakness analysis
+                var weaknessAnalysis = await _repository.GetWeaknessAnalysisAsync(userId, 7);
+
+                // Generate comprehensive parent report
+                var parentReport = _reportGenerator.GenerateParentReport(progress, weaknessAnalysis);
+                var formattedReport = _reportGenerator.GenerateFormattedParentReport(parentReport);
+
+                Console.WriteLine("📋 PARENT REPORT:");
+                Console.WriteLine(formattedReport);
+
+                // Generate daily summary
+                var dailySummary = _reportGenerator.GenerateDailySummary(progress);
+                Console.WriteLine("\n📅 DAILY SUMMARY:");
+                Console.WriteLine(dailySummary);
+
+                // Generate weakness summary
+                var weaknessSummary = _reportGenerator.GenerateWeaknessSummary(weaknessAnalysis);
+                Console.WriteLine("\n🔍 WEAKNESS ANALYSIS:");
+                Console.WriteLine(weaknessSummary);
+
+                Console.WriteLine();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error generating reports: {ex.Message}");
+            }
         }
 
-        static async Task AnalyzeWeaknesses(ChildProgressRepository repository, string childUserId)
+        static async Task Demo4_BatchOperations(string userId)
         {
-            var weaknesses = await repository.GetActivityWeaknesses(childUserId, 7);
-
-            Console.WriteLine("ACTIVITY WEAKNESS ANALYSIS:");
+            Console.WriteLine("📦 Demo 4: Batch Operations");
             Console.WriteLine("============================");
 
-            foreach (var weakness in weaknesses)
+            // Create batch input with multiple activities
+            var batchInput = new BatchActivityInput
             {
-                Console.WriteLine($"\n{weakness.Key} Activity:");
-                Console.WriteLine($"  Overall Success Rate: {weakness.Value.OverallSuccessRate:F1}%");
-                Console.WriteLine($"  Total Attempts: {weakness.Value.TotalAttempts}");
-
-                if (weakness.Value.TopWeakItems.Any())
+                UserId = userId,
+                TracingActivities = new List<TracingActivityInput>
                 {
-                    Console.WriteLine($"  Weakest Items: {string.Join(", ", weakness.Value.TopWeakItems)}");
+                    InputBuilder.CreateTracingInput(ECDGameActivityName.Numbers, "4", true, 2, 52.3),
+                    InputBuilder.CreateTracingInput(ECDGameActivityName.Numbers, "5", true, 3, 41.7),
+                    InputBuilder.CreateTracingInput(ECDGameActivityName.SmallAlphabet, "a", true, 2, 48.9)
+                },
+                QuizActivities = new List<QuizActivityInput>
+                {
+                    InputBuilder.CreateQuizInput(
+                        ECDGameActivityName.Numbers, "4",
+                        InputBuilder.CreateQuizDetail(QuizTypeDetail.Counting, true, 3, 2, false, 28.5, 60.0, 82)
+                    ),
+                    InputBuilder.CreateQuizInput(
+                        ECDGameActivityName.SmallAlphabet, "a",
+                        InputBuilder.CreateQuizDetail(QuizTypeDetail.ObjectRecognition, true, 3, 3, false, 15.2, 30.0, 91)
+                    )
+                }
+            };
+
+            var result = await _repository.AddBatchActivitiesAsync(batchInput);
+
+            if (result.IsSuccess)
+            {
+                Console.WriteLine($"✅ {result.Message}");
+                Console.WriteLine($"   📝 Tracing activities: {batchInput.TracingActivities.Count}");
+                Console.WriteLine($"   🎯 Quiz activities: {batchInput.QuizActivities.Count}");
+            }
+            else
+            {
+                Console.WriteLine($"❌ Batch operation failed: {result.Message}");
+            }
+
+            Console.WriteLine();
+        }
+
+        static async Task Demo5_LearningRecommendations(string userId)
+        {
+            Console.WriteLine("🎯 Demo 5: Learning Recommendations");
+            Console.WriteLine("====================================");
+
+            try
+            {
+                // Get learning plan
+                var learningPlan = await _repository.GetFocusedLearningPlanAsync(userId, 7, 7);
+                var planSummary = _reportGenerator.GenerateLearningPlanSummary(learningPlan);
+
+                Console.WriteLine("📅 LEARNING PLAN:");
+                Console.WriteLine(planSummary);
+
+                // Get activity recommendations
+                var recommendations = await _repository.GetActivityRecommendationsAsync(userId, 7);
+
+                if (recommendations.Any())
+                {
+                    Console.WriteLine("\n💡 ACTIVITY RECOMMENDATIONS:");
+                    Console.WriteLine("==============================");
+
+                    foreach (var rec in recommendations.Take(3))
+                    {
+                        Console.WriteLine($"🎮 {rec.ActivityType}:");
+                        Console.WriteLine($"   📝 Reason: {rec.Reason}");
+                        Console.WriteLine($"   🎯 Priority: {rec.Priority}");
+                        Console.WriteLine($"   📋 Suggested Items: {string.Join(", ", rec.SuggestedItems.Take(3))}");
+                        Console.WriteLine();
+                    }
+                }
+
+                // Get detailed weakness analysis
+                var weaknessDetails = await _repository.GetActivityWeaknessDetailsAsync(userId, 7);
+                var weaknessReport = _reportGenerator.GenerateActivityWeaknessReport(weaknessDetails);
+
+                Console.WriteLine("📊 DETAILED WEAKNESS ANALYSIS:");
+                Console.WriteLine(weaknessReport);
+
+                // Get overall statistics
+                var statistics = await _repository.GetChildStatisticsAsync(userId, 30);
+                var statsReport = _reportGenerator.GenerateStatisticsSummary(statistics);
+
+                Console.WriteLine("\n📈 STATISTICS:");
+                Console.WriteLine(statsReport);
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error generating recommendations: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Interactive Demo Methods
+
+        static async Task RunInteractiveDemo()
+        {
+            var userId = "interactive_user";
+
+            while (true)
+            {
+                Console.WriteLine("\n🎮 NumberLand Progress Tracking - Interactive Demo");
+                Console.WriteLine("==================================================");
+                Console.WriteLine("1. Add Tracing Activity");
+                Console.WriteLine("2. Add Quiz Activity");
+                Console.WriteLine("3. View Daily Summary");
+                Console.WriteLine("4. View Learning Plan");
+                Console.WriteLine("5. View Statistics");
+                Console.WriteLine("6. Export Reports");
+                Console.WriteLine("0. Exit");
+                Console.WriteLine();
+                Console.Write("Choose an option: ");
+
+                var choice = Console.ReadLine();
+
+                switch (choice)
+                {
+                    case "1":
+                        await AddTracingActivityInteractive(userId);
+                        break;
+                    case "2":
+                        await AddQuizActivityInteractive(userId);
+                        break;
+                    case "3":
+                        await ShowDailySummary(userId);
+                        break;
+                    case "4":
+                        await ShowLearningPlan(userId);
+                        break;
+                    case "5":
+                        await ShowStatistics(userId);
+                        break;
+                    case "6":
+                        await ExportReports(userId);
+                        break;
+                    case "0":
+                        return;
+                    default:
+                        Console.WriteLine("❌ Invalid option. Please try again.");
+                        break;
                 }
             }
         }
 
-        // Example method to simulate a complete learning session
-        static async Task SimulateCompleteLearningSession(ChildProgressRepository repository, string childUserId)
+        static async Task AddTracingActivityInteractive(string userId)
         {
-            Console.WriteLine("\n=== SIMULATING COMPLETE LEARNING SESSION ===");
+            Console.WriteLine("\n📝 Add Tracing Activity");
+            Console.WriteLine("========================");
 
-            // Simulate child learning numbers 1-3
-            for (int number = 1; number <= 3; number++)
+            // Get activity type
+            Console.WriteLine("Activity Types:");
+            Console.WriteLine("1. Numbers");
+            Console.WriteLine("2. Capital Alphabet");
+            Console.WriteLine("3. Small Alphabet");
+            Console.WriteLine("4. Shapes");
+            Console.WriteLine("5. Colors");
+            Console.Write("Choose activity type (1-5): ");
+
+            var activityTypeChoice = Console.ReadLine();
+            ECDGameActivityName activityType;
+
+            switch (activityTypeChoice)
             {
-                // Tracing activity
-                var tracingInput = new TracingActivityInput
-                {
-                    ActivityType = ECDGameActivityName.Numbers,
-                    ItemDetails = number.ToString(),
-                    Completed = true,
-                    StarsAchieved = new Random().Next(1, 4), // Random stars 1-3
-                    MaxStars = 3,
-                    TotalTime = new Random().Next(30, 90) // Random time 30-90 seconds
-                };
-                await repository.UpdateProgressWithTracing(childUserId, tracingInput);
-
-                // Quiz activities
-                var quizInput = new QuizActivityInput
-                {
-                    ActivityType = ECDGameActivityName.Numbers,
-                    ItemDetails = number.ToString(),
-                    QuizDetails = new List<QuizDetail>
-                    {
-                        new QuizDetail
-                        {
-                            Type = QuizTypeDetail.Counting,
-                            Completed = true,
-                            TotalLives = 3,
-                            LivesRemaining = new Random().Next(1, 4),
-                            QuizTimeOut = false,
-                            TimeTaken = new Random().Next(15, 45),
-                            TimeGiven = 60.0,
-                            Score = new Random().Next(60, 100)
-                        },
-                        new QuizDetail
-                        {
-                            Type = QuizTypeDetail.Listening,
-                            Completed = true,
-                            TotalLives = 3,
-                            LivesRemaining = new Random().Next(0, 4),
-                            QuizTimeOut = false,
-                            TimeTaken = new Random().Next(10, 30),
-                            TimeGiven = 30.0,
-                            Score = new Random().Next(50, 95)
-                        }
-                    }
-                };
-                await repository.UpdateProgressWithQuiz(childUserId, quizInput);
-
-                Console.WriteLine($"✓ Completed learning session for Number {number}");
+                case "1": activityType = ECDGameActivityName.Numbers; break;
+                case "2": activityType = ECDGameActivityName.CapitalAlphabet; break;
+                case "3": activityType = ECDGameActivityName.SmallAlphabet; break;
+                case "4": activityType = ECDGameActivityName.Shapes; break;
+                case "5": activityType = ECDGameActivityName.Colors; break;
+                default:
+                    Console.WriteLine("❌ Invalid choice.");
+                    return;
             }
 
-            Console.WriteLine("Learning session simulation completed!");
+            Console.Write("Item details (e.g., '1', 'A', 'Circle'): ");
+            var itemDetails = Console.ReadLine();
+
+            Console.Write("Completed? (y/n): ");
+            var completed = Console.ReadLine()?.ToLower() == "y";
+
+            Console.Write("Stars achieved (0-3): ");
+            if (!int.TryParse(Console.ReadLine(), out int stars) || stars < 0 || stars > 3)
+            {
+                Console.WriteLine("❌ Invalid stars value.");
+                return;
+            }
+
+            Console.Write("Time taken (seconds): ");
+            if (!double.TryParse(Console.ReadLine(), out double time) || time < 0)
+            {
+                Console.WriteLine("❌ Invalid time value.");
+                return;
+            }
+
+            var tracingInput = InputBuilder.CreateTracingInput(activityType, itemDetails, completed, stars, time);
+            var result = await _repository.AddTracingActivityAsync(userId, tracingInput);
+
+            if (result.IsSuccess)
+            {
+                Console.WriteLine($"✅ Tracing activity added successfully!");
+            }
+            else
+            {
+                Console.WriteLine($"❌ Failed to add activity: {result.Message}");
+            }
         }
+
+        static async Task AddQuizActivityInteractive(string userId)
+        {
+            Console.WriteLine("\n🎯 Add Quiz Activity");
+            Console.WriteLine("=====================");
+
+            // Similar implementation for interactive quiz input
+            // This would follow the same pattern as tracing activity
+            Console.WriteLine("🚧 Quiz activity input - implementation similar to tracing");
+            Console.WriteLine("   This would allow users to input quiz details interactively");
+        }
+
+        static async Task ShowDailySummary(string userId)
+        {
+            var progress = await _repository.GetProgressAsync(userId, ProgressEventType.Daily);
+            if (progress != null)
+            {
+                var summary = _reportGenerator.GenerateDailySummary(progress);
+                Console.WriteLine(summary);
+            }
+            else
+            {
+                Console.WriteLine("⚠️ No progress data found for today.");
+            }
+        }
+
+        static async Task ShowLearningPlan(string userId)
+        {
+            var plan = await _repository.GetFocusedLearningPlanAsync(userId);
+            var summary = _reportGenerator.GenerateLearningPlanSummary(plan);
+            Console.WriteLine(summary);
+        }
+
+        static async Task ShowStatistics(string userId)
+        {
+            var stats = await _repository.GetChildStatisticsAsync(userId);
+            var summary = _reportGenerator.GenerateStatisticsSummary(stats);
+            Console.WriteLine(summary);
+        }
+
+        static async Task ExportReports(string userId)
+        {
+            Console.WriteLine("\n📤 Export Reports");
+            Console.WriteLine("==================");
+
+            try
+            {
+                var progress = await _repository.GetProgressAsync(userId, ProgressEventType.Daily);
+                if (progress == null)
+                {
+                    Console.WriteLine("⚠️ No progress data to export.");
+                    return;
+                }
+
+                var weaknessAnalysis = await _repository.GetWeaknessAnalysisAsync(userId);
+                var report = _reportGenerator.GenerateParentReport(progress, weaknessAnalysis);
+                var learningPlan = await _repository.GetFocusedLearningPlanAsync(userId);
+
+                // Export to CSV
+                var progressCSV = ReportExporter.ExportProgressToCSV(report);
+                var activityCSV = ReportExporter.ExportActivityPerformanceToCSV(report);
+                var planCSV = ReportExporter.ExportLearningPlanToCSV(learningPlan);
+
+                Console.WriteLine("📊 Progress CSV:");
+                Console.WriteLine(progressCSV);
+                Console.WriteLine("\n🎮 Activity Performance CSV:");
+                Console.WriteLine(activityCSV);
+                Console.WriteLine("\n📅 Learning Plan CSV:");
+                Console.WriteLine(planCSV);
+
+                Console.WriteLine("✅ Reports exported successfully!");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Export failed: {ex.Message}");
+            }
+        }
+
+        #endregion
     }
 }

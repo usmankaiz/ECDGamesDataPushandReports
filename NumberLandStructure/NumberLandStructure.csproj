@@ -136,8 +136,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChildProgress.cs" />
+    <Compile Include="Controller\ProgressLogic.cs" />
+    <Compile Include="Controller\ReportsGenerator.cs" />
+    <Compile Include="Models\ECDGameDataStructure.cs" />
+    <Compile Include="Models\QuizandTracingInputModel.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Repository\ChildProgressRepo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
