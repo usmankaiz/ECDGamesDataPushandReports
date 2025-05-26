@@ -295,12 +295,12 @@ namespace NumberLandStructure
         {
             var allDicts = new[]
             {
-            NumberProgressDict,
-            CapitalAlphabetProgressDict,
-            SmallAlphabetProgressDict,
-            ShapeProgressDict,
-            ColorProgressDict
-        };
+                NumberProgressDict,
+                CapitalAlphabetProgressDict,
+                SmallAlphabetProgressDict,
+                ShapeProgressDict,
+                ColorProgressDict
+            };
 
             int totalAttempts = 0;
             int totalSuccess = 0;
@@ -379,9 +379,9 @@ namespace NumberLandStructure
         {
             var activityTypes = new[]
             {
-            "Tracing", "Object Recognition", "Listening", "Text to Figure",
-            "Figure to Text", "Counting", "Bubble Pop"
-        };
+                "Tracing", "Object Recognition", "Listening", "Text to Figure",
+                "Figure to Text", "Counting", "Bubble Pop"
+            };
 
             foreach (var activityType in activityTypes)
             {
@@ -409,12 +409,12 @@ namespace NumberLandStructure
         {
             var categoryData = new[]
             {
-            (ECDGameActivityName.Numbers, NumberProgressDict),
-            (ECDGameActivityName.CapitalAlphabet, CapitalAlphabetProgressDict),
-            (ECDGameActivityName.SmallAlphabet, SmallAlphabetProgressDict),
-            (ECDGameActivityName.Shapes, ShapeProgressDict),
-            (ECDGameActivityName.Colors, ColorProgressDict)
-        };
+                (ECDGameActivityName.Numbers, NumberProgressDict),
+                (ECDGameActivityName.CapitalAlphabet, CapitalAlphabetProgressDict),
+                (ECDGameActivityName.SmallAlphabet, SmallAlphabetProgressDict),
+                (ECDGameActivityName.Shapes, ShapeProgressDict),
+                (ECDGameActivityName.Colors, ColorProgressDict)
+            };
 
             int totalAttempts = 0;
             int totalSuccess = 0;
@@ -453,7 +453,7 @@ namespace NumberLandStructure
         }
 
         public (int attempts, int success, double time) GetActivitySpecificStats(
-    ECDGamesActivityProgress progress, string activityType)
+            ECDGamesActivityProgress progress, string activityType)
         {
             switch (activityType)
             {
@@ -503,12 +503,12 @@ namespace NumberLandStructure
             // Add recommendations for categories with low completion
             var categoryProgress = new[]
             {
-            (ECDGameActivityName.Numbers, NumberProgressDict),
-            (ECDGameActivityName.CapitalAlphabet, CapitalAlphabetProgressDict),
-            (ECDGameActivityName.SmallAlphabet, SmallAlphabetProgressDict),
-            (ECDGameActivityName.Shapes, ShapeProgressDict),
-            (ECDGameActivityName.Colors, ColorProgressDict)
-        };
+                (ECDGameActivityName.Numbers, NumberProgressDict),
+                (ECDGameActivityName.CapitalAlphabet, CapitalAlphabetProgressDict),
+                (ECDGameActivityName.SmallAlphabet, SmallAlphabetProgressDict),
+                (ECDGameActivityName.Shapes, ShapeProgressDict),
+                (ECDGameActivityName.Colors, ColorProgressDict)
+            };
 
             foreach (var (category, dict) in categoryProgress)
             {
@@ -536,12 +536,12 @@ namespace NumberLandStructure
             var items = new List<string>();
             var allDicts = new[]
             {
-            (ECDGameActivityName.Numbers, NumberProgressDict),
-            (ECDGameActivityName.CapitalAlphabet, CapitalAlphabetProgressDict),
-            (ECDGameActivityName.SmallAlphabet, SmallAlphabetProgressDict),
-            (ECDGameActivityName.Shapes, ShapeProgressDict),
-            (ECDGameActivityName.Colors, ColorProgressDict)
-        };
+                (ECDGameActivityName.Numbers, NumberProgressDict),
+                (ECDGameActivityName.CapitalAlphabet, CapitalAlphabetProgressDict),
+                (ECDGameActivityName.SmallAlphabet, SmallAlphabetProgressDict),
+                (ECDGameActivityName.Shapes, ShapeProgressDict),
+                (ECDGameActivityName.Colors, ColorProgressDict)
+            };
 
             foreach (var (category, dict) in allDicts)
             {
@@ -618,9 +618,9 @@ namespace NumberLandStructure
         {
             var activityTypes = new[]
             {
-            "Tracing", "ObjectRecognition", "Hearing", "TextToFigure",
-            "FigureToText", "Counting", "BubblePop"
-        };
+                "Tracing", "ObjectRecognition", "Hearing", "TextToFigure",
+                "FigureToText", "Counting", "BubblePop"
+            };
 
             var weaknesses = new List<ActivityWeakness>();
 
@@ -652,12 +652,12 @@ namespace NumberLandStructure
         {
             var allDicts = new[]
             {
-            NumberProgressDict,
-            CapitalAlphabetProgressDict,
-            SmallAlphabetProgressDict,
-            ShapeProgressDict,
-            ColorProgressDict
-        };
+                NumberProgressDict,
+                CapitalAlphabetProgressDict,
+                SmallAlphabetProgressDict,
+                ShapeProgressDict,
+                ColorProgressDict
+            };
 
             int totalAttempts = 0;
             int totalSuccess = 0;
@@ -721,6 +721,26 @@ namespace NumberLandStructure
             double avgTime = totalAttempts > 0 ? totalTime / totalAttempts : 0;
 
             return (successRate, totalAttempts, totalFailures, avgTime);
+        }
+
+        /// <summary>
+        /// Get weakness analysis results
+        /// </summary>
+        public WeaknessAnalysis GetWeaknessAnalysis(int topWeakItems = 5)
+        {
+            var analysis = new WeaknessAnalysis();
+
+            // Analyze each category
+            analysis.WeakNumbers = GetWeakItems(NumberProgressDict, "Numbers", topWeakItems);
+            analysis.WeakCapitalAlphabets = GetWeakItems(CapitalAlphabetProgressDict, "Capital Letters", topWeakItems);
+            analysis.WeakSmallAlphabets = GetWeakItems(SmallAlphabetProgressDict, "Small Letters", topWeakItems);
+            analysis.WeakShapes = GetWeakItems(ShapeProgressDict, "Shapes", topWeakItems);
+            analysis.WeakColors = GetWeakItems(ColorProgressDict, "Colors", topWeakItems);
+
+            // Get weakest activities across all items
+            analysis.WeakestActivities = GetWeakestActivities();
+
+            return analysis;
         }
     }
 
@@ -809,9 +829,9 @@ namespace NumberLandStructure
             // Individual activity scores
             var activities = new[]
             {
-            ObjectRecognitionQuiz, HearingQuiz, TextToFigureQuiz,
-            FigureToTextQuiz, CountingQuiz, BubblePop
-        };
+                ObjectRecognitionQuiz, HearingQuiz, TextToFigureQuiz,
+                FigureToTextQuiz, CountingQuiz, BubblePop
+            };
 
             foreach (var activity in activities)
             {
@@ -1208,7 +1228,6 @@ namespace NumberLandStructure
                 default:
                     return "📝";
             }
-
         }
     }
 
@@ -1397,23 +1416,6 @@ namespace NumberLandStructure
             return progress.GenerateParentReport();
         }
 
-        public WeaknessAnalysis GetWeaknessAnalysis(int topWeakItems = 5)
-        {
-            var analysis = new WeaknessAnalysis();
-
-            // Analyze each category
-            analysis.WeakNumbers = GetWeakItems(NumberProgressDict, "Numbers", topWeakItems);
-            analysis.WeakCapitalAlphabets = GetWeakItems(CapitalAlphabetProgressDict, "Capital Letters", topWeakItems);
-            analysis.WeakSmallAlphabets = GetWeakItems(SmallAlphabetProgressDict, "Small Letters", topWeakItems);
-            analysis.WeakShapes = GetWeakItems(ShapeProgressDict, "Shapes", topWeakItems);
-            analysis.WeakColors = GetWeakItems(ColorProgressDict, "Colors", topWeakItems);
-
-            // Get weakest activities across all items
-            analysis.WeakestActivities = GetWeakestActivities();
-
-            return analysis;
-        }
-
         /// <summary>
         /// Get activity-specific weaknesses
         /// </summary>
@@ -1596,9 +1598,9 @@ namespace NumberLandStructure
             var activityDetails = new Dictionary<string, ActivityWeaknessDetails>();
             var activityTypes = new[]
             {
-            "Tracing", "Object Recognition", "Listening", "Text to Figure",
-            "Figure to Text", "Counting", "Bubble Pop"
-        };
+                "Tracing", "Object Recognition", "Listening", "Text to Figure",
+                "Figure to Text", "Counting", "Bubble Pop"
+            };
 
             foreach (var activityType in activityTypes)
             {
@@ -1692,7 +1694,6 @@ namespace NumberLandStructure
                 default:
                     throw new ArgumentException($"Unknown activity type: {activityType}");
             }
-
         }
 
         private Dictionary<string, ECDGamesActivityProgress> GetProgressDictionary(
@@ -1713,7 +1714,6 @@ namespace NumberLandStructure
                 default:
                     return null;
             }
-
         }
     }
 
