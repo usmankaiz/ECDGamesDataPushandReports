@@ -6,11 +6,12 @@ using System.Threading.Tasks;
 using NumberLandStructure.Data;
 using NumberLandStructure.Input;
 using NumberLandStructure.Logic;
+using NumberLandStructure.Tracking;
 
 namespace NumberLandStructure.Repository
 {
     /// <summary>
-    /// MongoDB repository for child progress data
+    /// MongoDB repository for child progress data with tracking capabilities
     /// </summary>
     public class ChildProgressRepository
     {
@@ -19,6 +20,7 @@ namespace NumberLandStructure.Repository
         private readonly AnalysisLogic _analysisLogic;
         private readonly RecommendationLogic _recommendationLogic;
         private readonly ValidationLogic _validationLogic;
+        private readonly ProgressTracker _progressTracker;
 
         public ChildProgressRepository(IMongoDatabase database)
         {
@@ -27,6 +29,7 @@ namespace NumberLandStructure.Repository
             _analysisLogic = new AnalysisLogic();
             _recommendationLogic = new RecommendationLogic();
             _validationLogic = new ValidationLogic();
+            _progressTracker = new ProgressTracker();
             CreateIndexes();
         }
 
@@ -374,6 +377,349 @@ namespace NumberLandStructure.Repository
             return stats;
         }
 
+        #region NEW TRACKING METHODS
+
+        /// <summary>
+        /// Get complete progress overview for a child
+        /// </summary>
+        public async Task<ProgressOverview> GetProgressOverviewAsync(string userId)
+        {
+            var progress = await GetProgressAsync(userId, ProgressEventType.Daily);
+
+            if (progress == null)
+            {
+                return new ProgressOverview
+                {
+                    UserId = userId,
+                    GeneratedDate = DateTime.UtcNow,
+                    CategoryProgress = new Dictionary<ECDGameActivityName, CategoryTracking>()
+                };
+            }
+
+            return _progressTracker.GetProgressOverview(progress);
+        }
+
+        /// <summary>
+        /// Get detailed progress for a specific category
+        /// </summary>
+        public async Task<CategoryDetailView> GetCategoryProgressAsync(string userId, ECDGameActivityName category)
+        {
+            var progress = await GetProgressAsync(userId, ProgressEventType.Daily);
+
+            if (progress == null)
+            {
+                return new CategoryDetailView
+                {
+                    Category = category,
+                    ExpectedItems = GetExpectedItemsForCategory(category),
+                    ItemDetails = new List<ItemDetailView>()
+                };
+            }
+
+            return _progressTracker.GetCategoryDetails(progress, category);
+        }
+
+        /// <summary>
+        /// Get completion summary across all categories
+        /// </summary>
+        public async Task<CompletionSummary> GetCompletionSummaryAsync(string userId)
+        {
+            var progress = await GetProgressAsync(userId, ProgressEventType.Daily);
+
+            if (progress == null)
+            {
+                return new CompletionSummary
+                {
+                    UserId = userId,
+                    GeneratedDate = DateTime.UtcNow,
+                    CategoryCompletions = new Dictionary<ECDGameActivityName, CategoryCompletion>()
+                };
+            }
+
+            return _progressTracker.GetCompletionSummary(progress);
+        }
+
+        /// <summary>
+        /// Get progress for a specific activity type across all items
+        /// </summary>
+        public async Task<ActivityProgressView> GetActivityProgressAsync(string userId, string activityType)
+        {
+            var progress = await GetProgressAsync(userId, ProgressEventType.Daily);
+
+            if (progress == null)
+            {
+                return new ActivityProgressView
+                {
+                    ActivityType = activityType,
+                    GeneratedDate = DateTime.UtcNow,
+                    CategoryResults = new Dictionary<ECDGameActivityName, List<ItemActivityResult>>()
+                };
+            }
+
+            return _progressTracker.GetActivityProgress(progress, activityType);
+        }
+
+        /// <summary>
+        /// Get list of completed items across all categories
+        /// </summary>
+        public async Task<List<CompletedItem>> GetCompletedItemsAsync(string userId)
+        {
+            var progress = await GetProgressAsync(userId, ProgressEventType.Daily);
+            var completedItems = new List<CompletedItem>();
+
+            if (progress == null) return completedItems;
+
+            var categoryDictionaries = new[]
+            {
+                (ECDGameActivityName.Numbers, progress.NumberProgressDict),
+                (ECDGameActivityName.CapitalAlphabet, progress.CapitalAlphabetProgressDict),
+                (ECDGameActivityName.SmallAlphabet, progress.SmallAlphabetProgressDict),
+                (ECDGameActivityName.Shapes, progress.ShapeProgressDict),
+                (ECDGameActivityName.Colors, progress.ColorProgressDict)
+            };
+
+            foreach (var (category, dict) in categoryDictionaries)
+            {
+                if (dict != null)
+                {
+                    foreach (var kvp in dict.Where(p => p.Value.Completed))
+                    {
+                        completedItems.Add(new CompletedItem
+                        {
+                            Category = category,
+                            ItemName = kvp.Key,
+                            CompletedDate = progress.LastUpdated,
+                            OverallScore = _analysisLogic.CalculateOverallScore(kvp.Value),
+                            TotalAttempts = _analysisLogic.GetTotalAttempts(kvp.Value),
+                            TotalTimeSpent = _analysisLogic.GetTotalTimeSpent(kvp.Value)
+                        });
+                    }
+                }
+            }
+
+            return completedItems.OrderByDescending(item => item.CompletedDate).ToList();
+        }
+
+        /// <summary>
+        /// Get list of items in progress (attempted but not completed)
+        /// </summary>
+        public async Task<List<InProgressItem>> GetInProgressItemsAsync(string userId)
+        {
+            var progress = await GetProgressAsync(userId, ProgressEventType.Daily);
+            var inProgressItems = new List<InProgressItem>();
+
+            if (progress == null) return inProgressItems;
+
+            var categoryDictionaries = new[]
+            {
+                (ECDGameActivityName.Numbers, progress.NumberProgressDict),
+                (ECDGameActivityName.CapitalAlphabet, progress.CapitalAlphabetProgressDict),
+                (ECDGameActivityName.SmallAlphabet, progress.SmallAlphabetProgressDict),
+                (ECDGameActivityName.Shapes, progress.ShapeProgressDict),
+                (ECDGameActivityName.Colors, progress.ColorProgressDict)
+            };
+
+            foreach (var (category, dict) in categoryDictionaries)
+            {
+                if (dict != null)
+                {
+                    foreach (var kvp in dict.Where(p => !p.Value.Completed))
+                    {
+                        var itemProgress = kvp.Value;
+                        inProgressItems.Add(new InProgressItem
+                        {
+                            Category = category,
+                            ItemName = kvp.Key,
+                            LastAttempted = progress.LastUpdated,
+                            CurrentScore = _analysisLogic.CalculateOverallScore(itemProgress),
+                            TotalAttempts = _analysisLogic.GetTotalAttempts(itemProgress),
+                            TotalTimeSpent = _analysisLogic.GetTotalTimeSpent(itemProgress),
+                            WeakestActivity = _analysisLogic.GetWeakestActivity(itemProgress),
+                            CompletionRate = _analysisLogic.GetCompletionRate(itemProgress)
+                        });
+                    }
+                }
+            }
+
+            return inProgressItems.OrderBy(item => item.CurrentScore).ToList();
+        }
+
+        /// <summary>
+        /// Get items that haven't been attempted yet
+        /// </summary>
+        public async Task<List<NotStartedItem>> GetNotStartedItemsAsync(string userId)
+        {
+            var progress = await GetProgressAsync(userId, ProgressEventType.Daily);
+            var notStartedItems = new List<NotStartedItem>();
+
+            var categories = new[]
+            {
+                ECDGameActivityName.Numbers,
+                ECDGameActivityName.CapitalAlphabet,
+                ECDGameActivityName.SmallAlphabet,
+                ECDGameActivityName.Shapes,
+                ECDGameActivityName.Colors
+            };
+
+            foreach (var category in categories)
+            {
+                var expectedItems = GetExpectedItemsForCategory(category);
+                var progressDict = progress != null ? _progressLogic.GetProgressDictionary(progress, category) : null;
+
+                foreach (var expectedItem in expectedItems)
+                {
+                    if (progressDict?.ContainsKey(expectedItem) != true)
+                    {
+                        notStartedItems.Add(new NotStartedItem
+                        {
+                            Category = category,
+                            ItemName = expectedItem,
+                            RecommendedOrder = GetRecommendedOrder(category, expectedItem)
+                        });
+                    }
+                }
+            }
+
+            return notStartedItems.OrderBy(item => item.RecommendedOrder).ToList();
+        }
+
+        /// <summary>
+        /// Get items that need immediate attention (low scores, multiple failures)
+        /// </summary>
+        public async Task<List<AttentionItem>> GetItemsNeedingAttentionAsync(string userId)
+        {
+            var progress = await GetProgressAsync(userId, ProgressEventType.Daily);
+            var attentionItems = new List<AttentionItem>();
+
+            if (progress == null) return attentionItems;
+
+            var categoryDictionaries = new[]
+            {
+                (ECDGameActivityName.Numbers, progress.NumberProgressDict),
+                (ECDGameActivityName.CapitalAlphabet, progress.CapitalAlphabetProgressDict),
+                (ECDGameActivityName.SmallAlphabet, progress.SmallAlphabetProgressDict),
+                (ECDGameActivityName.Shapes, progress.ShapeProgressDict),
+                (ECDGameActivityName.Colors, progress.ColorProgressDict)
+            };
+
+            foreach (var (category, dict) in categoryDictionaries)
+            {
+                if (dict != null)
+                {
+                    foreach (var kvp in dict)
+                    {
+                        var itemProgress = kvp.Value;
+                        var totalAttempts = _analysisLogic.GetTotalAttempts(itemProgress);
+                        var overallScore = _analysisLogic.CalculateOverallScore(itemProgress);
+
+                        // Items that need attention: attempted multiple times but low score
+                        if (totalAttempts >= 3 && (overallScore < 70 || !itemProgress.Completed))
+                        {
+                            var reasons = new List<string>();
+
+                            if (overallScore < 50)
+                                reasons.Add("Very low score");
+                            else if (overallScore < 70)
+                                reasons.Add("Below average score");
+
+                            if (itemProgress.QuizFailCount > itemProgress.QuizCount / 2)
+                                reasons.Add("High quiz failure rate");
+
+                            if (itemProgress.TracingCount > 0 && itemProgress.TracingCompleteCount == 0)
+                                reasons.Add("Unable to complete tracing");
+
+                            if (!itemProgress.Completed && totalAttempts >= 5)
+                                reasons.Add("Many attempts without completion");
+
+                            attentionItems.Add(new AttentionItem
+                            {
+                                Category = category,
+                                ItemName = kvp.Key,
+                                CurrentScore = overallScore,
+                                TotalAttempts = totalAttempts,
+                                LastAttempted = progress.LastUpdated,
+                                AttentionReasons = reasons,
+                                RecommendedAction = GetRecommendedAction(itemProgress, overallScore),
+                                PriorityLevel = CalculatePriorityLevel(overallScore, totalAttempts)
+                            });
+                        }
+                    }
+                }
+            }
+
+            return attentionItems.OrderByDescending(item => item.PriorityLevel)
+                                 .ThenBy(item => item.CurrentScore)
+                                 .ToList();
+        }
+
+        /// <summary>
+        /// Get progress statistics for a specific time period
+        /// </summary>
+        public async Task<ProgressStatistics> GetProgressStatisticsAsync(string userId, int days = 7)
+        {
+            var endDate = DateTime.UtcNow.Date;
+            var startDate = endDate.AddDays(-days);
+
+            var progressRecords = await GetProgressRangeAsync(userId, startDate, endDate);
+
+            var stats = new ProgressStatistics
+            {
+                UserId = userId,
+                PeriodStart = startDate,
+                PeriodEnd = endDate,
+                DaysAnalyzed = days,
+                GeneratedDate = DateTime.UtcNow
+            };
+
+            if (!progressRecords.Any())
+                return stats;
+
+            // Calculate statistics across all records
+            var allItems = new List<ECDGamesActivityProgress>();
+
+            foreach (var record in progressRecords)
+            {
+                var allDicts = new[]
+                {
+                    record.NumberProgressDict,
+                    record.CapitalAlphabetProgressDict,
+                    record.SmallAlphabetProgressDict,
+                    record.ShapeProgressDict,
+                    record.ColorProgressDict
+                };
+
+                foreach (var dict in allDicts.Where(d => d != null))
+                {
+                    allItems.AddRange(dict.Values);
+                }
+            }
+
+            if (allItems.Any())
+            {
+                stats.TotalItemsAttempted = allItems.Count;
+                stats.TotalItemsCompleted = allItems.Count(item => item.Completed);
+                stats.TotalAttempts = allItems.Sum(item => _analysisLogic.GetTotalAttempts(item));
+                stats.TotalTimeSpent = allItems.Sum(item => _analysisLogic.GetTotalTimeSpent(item));
+                stats.AverageScore = allItems.Average(item => _analysisLogic.CalculateOverallScore(item));
+                stats.CompletionRate = (double)stats.TotalItemsCompleted / stats.TotalItemsAttempted * 100;
+
+                // Calculate activity-specific statistics
+                stats.TracingAttempts = allItems.Sum(item => item.TracingCount);
+                stats.TracingCompletions = allItems.Sum(item => item.TracingCompleteCount);
+                stats.QuizAttempts = allItems.Sum(item => item.QuizCount);
+                stats.QuizFailures = allItems.Sum(item => item.QuizFailCount);
+
+                stats.TracingSuccessRate = stats.TracingAttempts > 0 ?
+                    (double)stats.TracingCompletions / stats.TracingAttempts * 100 : 0;
+                stats.QuizSuccessRate = stats.QuizAttempts > 0 ?
+                    (double)(stats.QuizAttempts - stats.QuizFailures) / stats.QuizAttempts * 100 : 0;
+            }
+
+            return stats;
+        }
+
+        #endregion
+
         #region Private Helper Methods
 
         private string GetProgressFieldName(ECDGameActivityName activityType)
@@ -608,6 +954,80 @@ namespace NumberLandStructure.Repository
             return (stats.Count, stats.Count - stats.FailCount, stats.TotalTime);
         }
 
+        private List<string> GetExpectedItemsForCategory(ECDGameActivityName category)
+        {
+            switch (category)
+            {
+                case ECDGameActivityName.Numbers:
+                    return Enumerable.Range(1, 10).Select(i => i.ToString()).ToList();
+
+                case ECDGameActivityName.CapitalAlphabet:
+                    return Enumerable.Range('A', 26).Select(i => ((char)i).ToString()).ToList();
+
+                case ECDGameActivityName.SmallAlphabet:
+                    return Enumerable.Range('a', 26).Select(i => ((char)i).ToString()).ToList();
+
+                case ECDGameActivityName.Shapes:
+                    return new List<string> { "Circle", "Square", "Triangle", "Rectangle", "Oval",
+                                            "Diamond", "Star", "Heart", "Pentagon", "Hexagon" };
+
+                case ECDGameActivityName.Colors:
+                    return new List<string> { "Red", "Blue", "Yellow", "Green", "Orange", "Purple",
+                                            "Pink", "Brown", "Black", "White", "Gray", "Cyan" };
+
+                default:
+                    return new List<string>();
+            }
+        }
+
+        private int GetRecommendedOrder(ECDGameActivityName category, string itemName)
+        {
+            switch (category)
+            {
+                case ECDGameActivityName.Numbers:
+                    return int.TryParse(itemName, out int number) ? number : 999;
+
+                case ECDGameActivityName.CapitalAlphabet:
+                case ECDGameActivityName.SmallAlphabet:
+                    return itemName.Length > 0 ? itemName[0] : 999;
+
+                default:
+                    var expectedItems = GetExpectedItemsForCategory(category);
+                    return expectedItems.IndexOf(itemName) + 1;
+            }
+        }
+
+        private string GetRecommendedAction(ECDGamesActivityProgress itemProgress, double overallScore)
+        {
+            if (overallScore < 30)
+                return "Start with basic tracing practice";
+
+            if (overallScore < 50)
+                return "Focus on fundamental activities before quizzes";
+
+            if (overallScore < 70)
+            {
+                var weakestActivity = _analysisLogic.GetWeakestActivity(itemProgress);
+                return $"Practice {weakestActivity} activities";
+            }
+
+            return "Continue regular practice to maintain proficiency";
+        }
+
+        private int CalculatePriorityLevel(double score, int attempts)
+        {
+            int priority = 1; // Base priority
+
+            if (score < 30) priority += 3;
+            else if (score < 50) priority += 2;
+            else if (score < 70) priority += 1;
+
+            if (attempts >= 10) priority += 2;
+            else if (attempts >= 5) priority += 1;
+
+            return Math.Min(priority, 5); // Max priority level of 5
+        }
+
         #endregion
     }
 
@@ -646,6 +1066,91 @@ namespace NumberLandStructure.Repository
         public double OverallSuccessRate { get; set; } // percentage
         public double AverageSessionTime => TotalDaysActive > 0 ? TotalTimeSpent / TotalDaysActive : 0;
     }
+
+    #region NEW TRACKING DATA MODELS
+
+    /// <summary>
+    /// Represents a completed item
+    /// </summary>
+    public class CompletedItem
+    {
+        public ECDGameActivityName Category { get; set; }
+        public string ItemName { get; set; }
+        public DateTime CompletedDate { get; set; }
+        public double OverallScore { get; set; }
+        public int TotalAttempts { get; set; }
+        public double TotalTimeSpent { get; set; }
+    }
+
+    /// <summary>
+    /// Represents an item in progress
+    /// </summary>
+    public class InProgressItem
+    {
+        public ECDGameActivityName Category { get; set; }
+        public string ItemName { get; set; }
+        public DateTime LastAttempted { get; set; }
+        public double CurrentScore { get; set; }
+        public int TotalAttempts { get; set; }
+        public double TotalTimeSpent { get; set; }
+        public string WeakestActivity { get; set; }
+        public double CompletionRate { get; set; }
+    }
+
+    /// <summary>
+    /// Represents an item not yet started
+    /// </summary>
+    public class NotStartedItem
+    {
+        public ECDGameActivityName Category { get; set; }
+        public string ItemName { get; set; }
+        public int RecommendedOrder { get; set; }
+    }
+
+    /// <summary>
+    /// Represents an item needing attention
+    /// </summary>
+    public class AttentionItem
+    {
+        public ECDGameActivityName Category { get; set; }
+        public string ItemName { get; set; }
+        public double CurrentScore { get; set; }
+        public int TotalAttempts { get; set; }
+        public DateTime LastAttempted { get; set; }
+        public List<string> AttentionReasons { get; set; } = new List<string>();
+        public string RecommendedAction { get; set; }
+        public int PriorityLevel { get; set; } // 1-5, 5 being highest priority
+    }
+
+    /// <summary>
+    /// Progress statistics for a time period
+    /// </summary>
+    public class ProgressStatistics
+    {
+        public string UserId { get; set; }
+        public DateTime PeriodStart { get; set; }
+        public DateTime PeriodEnd { get; set; }
+        public int DaysAnalyzed { get; set; }
+        public DateTime GeneratedDate { get; set; }
+
+        // Overall statistics
+        public int TotalItemsAttempted { get; set; }
+        public int TotalItemsCompleted { get; set; }
+        public int TotalAttempts { get; set; }
+        public double TotalTimeSpent { get; set; }
+        public double AverageScore { get; set; }
+        public double CompletionRate { get; set; }
+
+        // Activity-specific statistics
+        public int TracingAttempts { get; set; }
+        public int TracingCompletions { get; set; }
+        public double TracingSuccessRate { get; set; }
+        public int QuizAttempts { get; set; }
+        public int QuizFailures { get; set; }
+        public double QuizSuccessRate { get; set; }
+    }
+
+    #endregion
 
     /// <summary>
     /// Extension methods for ActivityWeaknessDetails
