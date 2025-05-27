@@ -23,6 +23,8 @@ namespace NumberLandStructure
             var client = new MongoClient(connectionString);
             var database = client.GetDatabase("NumberLandDB"); // Replace with your database name
 
+
+
             // Initialize components
             _repository = new ChildProgressRepository(database);
             _reportGenerator = new ReportGenerator();
@@ -30,19 +32,331 @@ namespace NumberLandStructure
             Console.WriteLine("🎮 Welcome to NumberLand Progress Tracking System!");
             Console.WriteLine("==================================================\n");
 
+            //try
+            //{
+            //    // Example usage scenarios
+            //    await RunDemoScenarios();
+            //}
+            //catch (Exception ex)
+            //{
+            //    Console.WriteLine($"❌ Error: {ex.Message}");
+            //}
+
+            string userId = "student_demo_001";
+
             try
             {
-                // Example usage scenarios
-                await RunDemoScenarios();
+                // Demo the new tracking features
+                await DemoItemCompletionTracking(_repository, userId);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Error: {ex.Message}");
             }
 
+
             Console.WriteLine("\nPress any key to exit...");
             Console.ReadKey();
         }
+
+        #region Second Version
+        static async Task DemoItemCompletionTracking(ChildProgressRepository repository, string userId)
+        {
+            Console.WriteLine("📊 ITEM COMPLETION TRACKING DEMO");
+            Console.WriteLine("=================================\n");
+
+            // Step 1: Add some sample activities
+            await AddSampleActivities(repository, userId);
+
+            // Step 2: Show which items have been completed
+            await ShowCompletedItems(repository, userId);
+
+            // Step 3: Show items in progress
+            await ShowInProgressItems(repository, userId);
+
+            // Step 4: Show items not started
+            await ShowNotStartedItems(repository, userId);
+
+            // Step 5: Show detailed category view
+            await ShowCategoryDetails(repository, userId);
+
+            // Step 6: Show completion summary
+            await ShowCompletionSummary(repository, userId);
+
+            // Step 7: Show items needing attention
+            await ShowItemsNeedingAttention(repository, userId);
+        }
+
+        static async Task AddSampleActivities(ChildProgressRepository repository, string userId)
+        {
+            Console.WriteLine("📝 Adding sample activities to demonstrate tracking...\n");
+
+            // Numbers 1-3: Completed with good scores
+            for (int i = 1; i <= 3; i++)
+            {
+                // Add tracing (completed)
+                var tracingInput = InputBuilder.CreateTracingInput(
+                    ECDGameActivityName.Numbers, i.ToString(), true, 3, 40.0 + i * 5);
+                await repository.AddTracingActivityAsync(userId, tracingInput);
+
+                // Add quiz (passed)
+                var quizInput = InputBuilder.CreateQuizInput(
+                    ECDGameActivityName.Numbers, i.ToString(),
+                    InputBuilder.CreateQuizDetail(QuizTypeDetail.Counting, true, 3, 2, false, 25.0, 60.0, 85 + i * 3)
+                );
+                await repository.AddQuizActivityAsync(userId, quizInput);
+
+                Console.WriteLine($"✅ Number {i}: Completed with high score");
+            }
+
+            // Numbers 4-5: In progress (attempted but not completed)
+            for (int i = 4; i <= 5; i++)
+            {
+                // Add tracing (not completed)
+                var tracingInput = InputBuilder.CreateTracingInput(
+                    ECDGameActivityName.Numbers, i.ToString(), false, 1, 60.0 + i * 5);
+                await repository.AddTracingActivityAsync(userId, tracingInput);
+
+                // Add quiz (failed)
+                var quizInput = InputBuilder.CreateQuizInput(
+                    ECDGameActivityName.Numbers, i.ToString(),
+                    InputBuilder.CreateQuizDetail(QuizTypeDetail.Counting, false, 3, 0, false, 35.0, 60.0, 45)
+                );
+                await repository.AddQuizActivityAsync(userId, quizInput);
+
+                Console.WriteLine($"🔄 Number {i}: In progress (needs more practice)");
+            }
+
+            // Letters A-C: Mixed results
+            var letters = new[] { ("A", true, 3, 90), ("B", true, 2, 80), ("C", false, 1, 55) };
+            foreach (var (letter, completed, stars, score) in letters)
+            {
+                var tracingInput = InputBuilder.CreateTracingInput(
+                    ECDGameActivityName.CapitalAlphabet, letter, completed, stars, 35.0);
+                await repository.AddTracingActivityAsync(userId, tracingInput);
+
+                var quizInput = InputBuilder.CreateQuizInput(
+                    ECDGameActivityName.CapitalAlphabet, letter,
+                    InputBuilder.CreateQuizDetail(QuizTypeDetail.ObjectRecognition, completed, 3, completed ? 2 : 0, false, 20.0, 45.0, score)
+                );
+                await repository.AddQuizActivityAsync(userId, quizInput);
+
+                Console.WriteLine($"{(completed ? "✅" : "🔄")} Letter {letter}: {(completed ? "Completed" : "In progress")} - {score}%");
+            }
+
+            Console.WriteLine("\n✅ Sample data added!\n");
+        }
+
+        static async Task ShowCompletedItems(ChildProgressRepository repository, string userId)
+        {
+            Console.WriteLine("✅ COMPLETED ITEMS");
+            Console.WriteLine("==================");
+
+            var completedItems = await repository.GetCompletedItemsAsync(userId);
+
+            if (completedItems.Any())
+            {
+                Console.WriteLine($"🎉 Great job! {completedItems.Count} items completed:\n");
+
+                foreach (var item in completedItems)
+                {
+                    var emoji = GetCategoryEmoji(item.Category);
+                    Console.WriteLine($"{emoji} {item.Category} '{item.ItemName}':");
+                    Console.WriteLine($"   📊 Score: {item.OverallScore:F0}%");
+                    Console.WriteLine($"   🎯 Attempts: {item.TotalAttempts}");
+                    Console.WriteLine($"   ⏱️ Time: {TimeSpan.FromSeconds(item.TotalTimeSpent):mm\\:ss}");
+                    Console.WriteLine($"   📅 Completed: {item.CompletedDate:MMM dd, HH:mm}");
+                    Console.WriteLine();
+                }
+            }
+            else
+            {
+                Console.WriteLine("No items completed yet. Keep practicing! 💪\n");
+            }
+        }
+
+        static async Task ShowInProgressItems(ChildProgressRepository repository, string userId)
+        {
+            Console.WriteLine("🔄 ITEMS IN PROGRESS");
+            Console.WriteLine("====================");
+
+            var inProgressItems = await repository.GetInProgressItemsAsync(userId);
+
+            if (inProgressItems.Any())
+            {
+                Console.WriteLine($"📚 {inProgressItems.Count} items being worked on:\n");
+
+                foreach (var item in inProgressItems)
+                {
+                    var emoji = GetCategoryEmoji(item.Category);
+                    Console.WriteLine($"{emoji} {item.Category} '{item.ItemName}':");
+                    Console.WriteLine($"   📊 Current Score: {item.CurrentScore:F0}%");
+                    Console.WriteLine($"   🎯 Attempts: {item.TotalAttempts}");
+                    Console.WriteLine($"   ⚠️ Weakest Activity: {item.WeakestActivity}");
+                    Console.WriteLine($"   📈 Completion Rate: {item.CompletionRate:F0}%");
+                    Console.WriteLine($"   📅 Last Attempted: {item.LastAttempted:MMM dd, HH:mm}");
+                    Console.WriteLine();
+                }
+            }
+            else
+            {
+                Console.WriteLine("No items in progress.\n");
+            }
+        }
+
+        static async Task ShowNotStartedItems(ChildProgressRepository repository, string userId)
+        {
+            Console.WriteLine("⭕ ITEMS NOT STARTED");
+            Console.WriteLine("===================");
+
+            var notStartedItems = await repository.GetNotStartedItemsAsync(userId);
+
+            if (notStartedItems.Any())
+            {
+                Console.WriteLine($"🆕 {notStartedItems.Count} items ready to try:\n");
+
+                // Group by category
+                var groupedByCategory = notStartedItems.GroupBy(item => item.Category);
+
+                foreach (var group in groupedByCategory)
+                {
+                    var emoji = GetCategoryEmoji(group.Key);
+                    var items = group.Take(5).Select(i => i.ItemName); // Show first 5
+                    var remaining = Math.Max(0, group.Count() - 5);
+
+                    Console.WriteLine($"{emoji} {group.Key}: {string.Join(", ", items)}{(remaining > 0 ? $" (+{remaining} more)" : "")}");
+                }
+                Console.WriteLine();
+            }
+            else
+            {
+                Console.WriteLine("All available items have been attempted! 🎉\n");
+            }
+        }
+
+        static async Task ShowCategoryDetails(ChildProgressRepository repository, string userId)
+        {
+            Console.WriteLine("📚 NUMBERS CATEGORY DETAILS");
+            Console.WriteLine("============================");
+
+            var categoryDetails = await repository.GetCategoryProgressAsync(userId, ECDGameActivityName.Numbers);
+
+            Console.WriteLine($"📊 Numbers (1-10) Progress:\n");
+            Console.WriteLine("Item | Status      | Score | Attempts | Time   | Activities");
+            Console.WriteLine(new string('-', 60));
+
+            foreach (var item in categoryDetails.ItemDetails.Take(10)) // Show first 10
+            {
+                var status = item.IsCompleted ? "✅ Done    " :
+                            item.IsAttempted ? "🔄 Progress" :
+                            "⭕ Not Started";
+
+                var score = item.IsAttempted ? $"{item.OverallScore:F0}%" : "--";
+                var attempts = item.IsAttempted ? item.TotalAttempts.ToString() : "--";
+                var time = item.IsAttempted ? TimeSpan.FromSeconds(item.TotalTimeSpent).ToString(@"mm\:ss") : "--";
+
+                // Count completed activities
+                var completedActivities = item.ActivityStatus.Count(a => a.Value.IsCompleted);
+                var totalActivities = item.ActivityStatus.Count(a => a.Value.IsAttempted);
+                var activitiesInfo = item.IsAttempted ? $"{completedActivities}/{totalActivities}" : "--";
+
+                Console.WriteLine($"{item.ItemName,4} | {status} | {score,5} | {attempts,8} | {time,6} | {activitiesInfo}");
+            }
+            Console.WriteLine();
+        }
+
+        static async Task ShowCompletionSummary(ChildProgressRepository repository, string userId)
+        {
+            Console.WriteLine("🎯 COMPLETION SUMMARY");
+            Console.WriteLine("=====================");
+
+            var completionSummary = await repository.GetCompletionSummaryAsync(userId);
+
+            Console.WriteLine($"📊 Overall Progress Overview:\n");
+
+            foreach (var category in completionSummary.CategoryCompletions)
+            {
+                var completion = category.Value;
+                var emoji = GetCategoryEmoji(category.Key);
+
+                Console.WriteLine($"{emoji} {category.Key}:");
+                Console.WriteLine($"   📈 Completion: {completion.CompletionPercentage:F1}% ({completion.CompletedItems}/{completion.TotalItems})");
+                Console.WriteLine($"   🎯 Attempted: {completion.AttemptPercentage:F1}% ({completion.AttemptedItems}/{completion.TotalItems})");
+
+                // Simple progress bar
+                var progressBar = GenerateProgressBar(completion.CompletionPercentage, 15);
+                Console.WriteLine($"   {progressBar}");
+                Console.WriteLine();
+            }
+        }
+
+        static async Task ShowItemsNeedingAttention(ChildProgressRepository repository, string userId)
+        {
+            Console.WriteLine("⚠️ ITEMS NEEDING ATTENTION");
+            Console.WriteLine("===========================");
+
+            var attentionItems = await repository.GetItemsNeedingAttentionAsync(userId);
+
+            if (attentionItems.Any())
+            {
+                Console.WriteLine($"🚨 {attentionItems.Count} items need extra practice:\n");
+
+                foreach (var item in attentionItems.Take(5)) // Show top 5
+                {
+                    var emoji = GetCategoryEmoji(item.Category);
+                    var priority = GetPriorityIcon(item.PriorityLevel);
+
+                    Console.WriteLine($"{priority} {emoji} {item.Category} '{item.ItemName}':");
+                    Console.WriteLine($"   📊 Score: {item.CurrentScore:F0}% after {item.TotalAttempts} attempts");
+                    Console.WriteLine($"   ⚠️ Issues: {string.Join(", ", item.AttentionReasons)}");
+                    Console.WriteLine($"   💡 Recommendation: {item.RecommendedAction}");
+                    Console.WriteLine();
+                }
+            }
+            else
+            {
+                Console.WriteLine("🎉 Great job! No items need immediate attention.\n");
+            }
+        }
+
+        #region Helper Methods
+
+        static string GetCategoryEmoji(ECDGameActivityName category)
+        {
+            switch (category)
+            {
+                case ECDGameActivityName.Numbers: return "🔢";
+                case ECDGameActivityName.CapitalAlphabet: return "🔤";
+                case ECDGameActivityName.SmallAlphabet: return "🔡";
+                case ECDGameActivityName.Shapes: return "🔷";
+                case ECDGameActivityName.Colors: return "🎨";
+                default: return "📝";
+            }
+        }
+
+        static string GetPriorityIcon(int priorityLevel)
+        {
+            switch (priorityLevel)
+            {
+                case 5: return "🚨"; // Critical
+                case 4: return "⚠️"; // High
+                case 3: return "🔶"; // Medium
+                case 2: return "🔸"; // Low
+                default: return "ℹ️"; // Info
+            }
+        }
+
+        static string GenerateProgressBar(double percentage, int width)
+        {
+            var completed = (int)Math.Round(percentage / 100.0 * width);
+            var remaining = width - completed;
+            return $"[{new string('█', completed)}{new string('░', remaining)}] {percentage:F0}%";
+        }
+
+        #endregion
+        #endregion
+
+        #region First Version
 
         static async Task RunDemoScenarios()
         {
@@ -476,4 +790,5 @@ namespace NumberLandStructure
 
         #endregion
     }
+    #endregion
 }
