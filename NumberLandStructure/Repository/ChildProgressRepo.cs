@@ -211,14 +211,16 @@ namespace NumberLandStructure.Repository
         /// </summary>
         public async Task<ChildProgress> GetProgressAsync(string userId, ProgressEventType eventType, DateTime? periodStart = null)
         {
-            var query = _collection.Find(x => x.UserId == userId && x.EventType == eventType);
+            var filterBuilder = Builders<ChildProgress>.Filter;
+            var filter = filterBuilder.Eq(x => x.UserId, userId) &
+                         filterBuilder.Eq(x => x.EventType, eventType);
 
             if (periodStart.HasValue)
             {
-                query = query.Where(x => x.PeriodStart == periodStart.Value);
+                filter &= filterBuilder.Eq(x => x.PeriodStart, periodStart.Value);
             }
 
-            return await query
+            return await _collection.Find(filter)
                 .SortByDescending(x => x.PeriodStart)
                 .FirstOrDefaultAsync();
         }

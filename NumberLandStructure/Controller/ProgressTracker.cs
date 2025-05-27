@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using NumberLandStructure.Data;
+using NumberLandStructure.Logic;
 
 namespace NumberLandStructure.Tracking
 {
@@ -377,7 +379,7 @@ namespace NumberLandStructure.Tracking
                 {
                     var activity = item.ActivityStatus[activities[i]];
                     var status = GetActivityStatusSymbol(activity);
-                    sb.Append($"{status,widths[i]} | ");
+                    sb.Append(string.Format("{0,-" + widths[i] + "} | ", status));
                 }
 
                 // Overall score

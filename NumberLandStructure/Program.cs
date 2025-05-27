@@ -7,6 +7,7 @@ using NumberLandStructure.Input;
 using NumberLandStructure.Repository;
 using NumberLandStructure.Reports;
 using NumberLandStructure.Logic;
+using System.Linq;
 
 namespace NumberLandStructure
 {
